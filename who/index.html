@@ -1,0 +1,82 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>谁上车了？视觉记忆游戏</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="page-header">
+        <button id="animals-btn" class="animals-button" type="button" aria-haspopup="dialog">动物</button>
+        <p class="eyebrow">视觉追踪训练小游戏</p>
+        <h1>谁上车了？</h1>
+        <p class="instruction">记住站台上的小动物，看看哪一只坐上了公交车。</p>
+      </header>
+
+      <section class="game-card" aria-label="谁上车了游戏">
+        <div id="stage" class="stage" role="img" aria-label="公交站与小动物">
+          <div id="animals" class="animals" aria-live="polite"></div>
+          <div id="bus" class="bus" aria-hidden="true">
+            <div class="bus-top"><span>快乐巴士</span><i></i><i></i><i></i><i></i></div>
+            <div class="bus-body"><b></b><b></b><b></b><b></b></div>
+            <div class="bus-bottom"><i></i><i></i></div>
+          </div>
+          <div id="answer-banner" class="answer-banner" aria-live="assertive"></div>
+        </div>
+
+        <div class="status-panel" aria-live="polite">
+          <span class="status-icon" aria-hidden="true">⏳</span>
+          <p id="status-text">小动物正在等公交车… 15 秒</p>
+        </div>
+
+        <div class="actions">
+          <button id="repeat-btn" class="button button-secondary" type="button">↻ 重复本轮</button>
+          <button id="refresh-btn" class="button button-refresh" type="button">↻ 刷新动物</button>
+          <button id="timer-btn" class="timer-button" type="button" aria-haspopup="dialog">公交遮挡：5 秒</button>
+          <button id="music-btn" class="music-button" type="button" aria-pressed="false">♫ 音乐：关</button>
+          <button id="next-btn" class="button button-primary" type="button" disabled>下一轮 →</button>
+        </div>
+      </section>
+    </main>
+
+    <dialog id="timer-dialog" class="timer-dialog" aria-labelledby="timer-title">
+      <form id="timer-form" method="dialog">
+        <button class="dialog-close" type="button" id="close-dialog" aria-label="关闭">×</button>
+        <p class="eyebrow">时间设置</p>
+        <h2 id="timer-title">公交遮挡多久？</h2>
+        <label for="timer-input">秒数（5–60 秒）</label>
+        <input id="timer-input" type="number" min="5" max="60" step="1" inputmode="numeric" />
+        <button class="button button-primary" type="submit">确定</button>
+      </form>
+    </dialog>
+
+    <dialog id="animals-dialog" class="animals-dialog" aria-labelledby="animals-title">
+      <div class="animals-dialog-content">
+        <div class="dialog-heading">
+          <div>
+            <p class="eyebrow">素材管理</p>
+            <h2 id="animals-title">动物素材清单</h2>
+          </div>
+          <button class="dialog-close" type="button" id="close-animals-dialog" aria-label="关闭">×</button>
+        </div>
+        <p class="catalog-help">添加图片文件后填写名称与文件名，系统会自动生成 id。支持 PNG、JPG、JPEG、SVG。</p>
+        <div class="catalog-table-wrap">
+          <table class="catalog-table">
+            <thead><tr><th>id</th><th>名称</th><th>图片文件名</th><th>操作</th></tr></thead>
+            <tbody id="catalog-rows"></tbody>
+          </table>
+        </div>
+        <p id="catalog-message" class="catalog-message" aria-live="polite"></p>
+        <div class="catalog-actions">
+          <button id="add-animal-btn" class="button button-secondary" type="button">＋ 添加动物</button>
+          <button id="save-catalog-btn" class="button button-primary" type="button">保存到 catalog.js</button>
+        </div>
+      </div>
+    </dialog>
+
+    <script src="assets/animals/catalog.js"></script>
+    <script src="game.js"></script>
+  </body>
+</html>

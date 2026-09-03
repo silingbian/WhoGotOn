@@ -1,0 +1,19 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="1280" height="800" viewBox="0 0 1280 800">
+  <rect width="1280" height="800" fill="#dff3f5"/>
+  <path d="M0 0h1280v245c-90 18-164 5-240-18-91-28-163-5-258 13-105 20-185-20-281-25-115-6-200 39-312 13C121 213 53 214 0 232z" fill="#bfe7e5"/>
+  <path d="M0 405c150-41 264-17 375 8 119 27 200-17 327-29 147-14 248 29 340 17 84-12 158-31 238 5v394H0z" fill="#a9dbc1"/>
+  <rect y="570" width="1280" height="230" fill="#f1d8a8"/>
+  <path d="M0 650c210-15 416-12 640 0s430 12 640 0v150H0z" fill="#e7c991"/>
+  <g stroke="#6d9d9c" stroke-linecap="round">
+    <path d="M137 572V172M862 572V172" stroke-width="20"/>
+    <path d="M109 172h780" stroke-width="23"/>
+    <path d="M182 190h660" stroke-width="9"/>
+  </g>
+  <rect x="205" y="202" width="610" height="216" rx="16" fill="#fff9e7" stroke="#6d9d9c" stroke-width="11"/>
+  <path d="M225 374h570" stroke="#b6dcd4" stroke-width="7"/>
+  <g fill="#c7e9f0" stroke="#77aab5" stroke-width="7"><rect x="247" y="228" width="150" height="126" rx="12"/><rect x="433" y="228" width="150" height="126" rx="12"/><rect x="619" y="228" width="150" height="126" rx="12"/></g>
+  <g fill="#d89667" stroke="#8e684e" stroke-width="8"><path d="M168 548h685v22H168z"/><path d="M181 570h52v34h-52zM788 570h52v34h-52z"/></g>
+  <g transform="translate(928 154)"><path d="M48 414V64" stroke="#5d8d8a" stroke-width="15"/><circle cx="48" cy="42" r="40" fill="#ffbe59" stroke="#5d8d8a" stroke-width="9"/><text x="48" y="57" text-anchor="middle" font-family="sans-serif" font-size="44" font-weight="bold" fill="#fff">站</text></g>
+  <g fill="#f4c66f" opacity=".8"><ellipse cx="106" cy="626" rx="59" ry="10"/><ellipse cx="340" cy="626" rx="59" ry="10"/><ellipse cx="574" cy="626" rx="59" ry="10"/><ellipse cx="808" cy="626" rx="59" ry="10"/><ellipse cx="1042" cy="626" rx="59" ry="10"/></g>
+  <g fill="#7cb685"><path d="M1100 570c-38-52 13-123 43-70 24-75 103-11 54 46z"/><path d="M1057 588c-52-32-17-109 23-79 1-65 78-55 68 12z"/></g>
+</svg>
