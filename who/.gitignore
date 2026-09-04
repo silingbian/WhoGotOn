@@ -1,0 +1,6 @@
+.DS_Store
+Thumbs.db
+*.log
+node_modules/
+# 高清原图归档（不参与页面加载，避免仓库过大）
+image/original/

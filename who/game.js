@@ -1,23 +1,25 @@
 let animalCatalog = Array.isArray(window.ANIMAL_CATALOG) ? [...window.ANIMAL_CATALOG] : [];
 
-const SPOTS = [
-  [4, 42], [23, 41], [42, 42], [61, 41], [80, 42]
-];
-const WAIT_SECONDS = 15;
+const WAIT_SECONDS_DEFAULT = 15;
+const COVER_SECONDS_DEFAULT = 1;
+const ANIMAL_COUNT_DEFAULT = 5;
+
 const elements = {
   animals: document.querySelector("#animals"),
   bus: document.querySelector("#bus"),
   status: document.querySelector("#status-text"),
   repeat: document.querySelector("#repeat-btn"),
   next: document.querySelector("#next-btn"),
-  timer: document.querySelector("#timer-btn"),
-  dialog: document.querySelector("#timer-dialog"),
-  timerForm: document.querySelector("#timer-form"),
-  timerInput: document.querySelector("#timer-input"),
-  closeDialog: document.querySelector("#close-dialog"),
-  answer: document.querySelector("#answer-banner"),
   music: document.querySelector("#music-btn"),
   refresh: document.querySelector("#refresh-btn"),
+  settings: document.querySelector("#settings-btn"),
+  settingsDialog: document.querySelector("#settings-dialog"),
+  settingsForm: document.querySelector("#settings-form"),
+  countInput: document.querySelector("#count-input"),
+  coverInput: document.querySelector("#cover-input"),
+  waitInput: document.querySelector("#wait-input"),
+  closeSettings: document.querySelector("#close-settings-dialog"),
+  answer: document.querySelector("#answer-banner"),
   animalsButton: document.querySelector("#animals-btn"),
   animalsDialog: document.querySelector("#animals-dialog"),
   closeAnimalsDialog: document.querySelector("#close-animals-dialog"),
@@ -30,7 +32,9 @@ const elements = {
 let currentRound = [];
 let previousRoundIds = [];
 let boardedAnimal = null;
-let coverSeconds = 5;
+let coverSeconds = COVER_SECONDS_DEFAULT;
+let waitSeconds = WAIT_SECONDS_DEFAULT;
+let animalCount = ANIMAL_COUNT_DEFAULT;
 let state = "waiting";
 let timers = [];
 let musicOn = false;
@@ -45,23 +49,39 @@ function clearTimeline() { timers.forEach(clearTimeout); timers = []; }
 function shuffle(items) { return [...items].sort(() => Math.random() - .5); }
 function chooseAnimals(excludedIds = previousRoundIds) {
   const source = excludedIds.length ? animalCatalog.filter(animal => !excludedIds.includes(animal.id)) : animalCatalog;
-  return shuffle(source).slice(0, 5);
+  return shuffle(source).slice(0, animalCount);
+}
+function pickBoardedAnimal() {
+  if (currentRound.length) boardedAnimal = currentRound[Math.floor(Math.random() * currentRound.length)];
+}
+function buildSpots(count) {
+  const spots = [];
+  const width = Math.max(8, Math.min(18, 92 / count));
+  const step = 100 / count;
+  for (let i = 0; i < count; i++) {
+    spots.push({ left: i * step + (step - width) / 2, top: 42, width });
+  }
+  return spots;
 }
 function renderAnimals() {
   elements.animals.innerHTML = "";
+  const stage = elements.animals.parentElement;
+  if (stage) stage.dataset.count = String(currentRound.length);
+  const spots = buildSpots(currentRound.length);
   currentRound.forEach((animal, index) => {
-    const [left, top] = SPOTS[index];
+    const spot = spots[index];
     const item = document.createElement("div");
     item.className = "animal";
     item.dataset.animal = animal.id;
-    item.style.left = `${left}%`;
-    item.style.top = `${top}%`;
+    item.style.left = `${spot.left}%`;
+    item.style.top = `${spot.top}%`;
+    item.style.width = `${spot.width}%`;
     const image = document.createElement("img");
     image.src = `assets/animals/${animal.src}`;
     image.alt = animal.name;
     image.addEventListener("error", () => {
-      if (animal.fallback && image.getAttribute("src") !== `assets/animals/${animal.fallback}`) {
-        image.src = `assets/animals/${animal.fallback}`;
+      if (animal.fallback && image.getAttribute("src") !== animal.fallback) {
+        image.src = animal.fallback;
       }
     }, { once: true });
     item.append(image, Object.assign(document.createElement("span"), { className: "name-tag", textContent: animal.name }));
@@ -69,7 +89,6 @@ function renderAnimals() {
   });
 }
 function updateStatus(text) { elements.status.textContent = text; }
-function updateTimerButton() { elements.timer.textContent = `公交遮挡：${coverSeconds} 秒`; }
 function resetBus() { elements.bus.className = "bus"; }
 function startCountdown(seconds, onDone, label) {
   let remaining = seconds;
@@ -88,7 +107,7 @@ function startWaiting() {
   elements.answer.classList.remove("show");
   renderAnimals();
   resetBus();
-  startCountdown(WAIT_SECONDS, driveIn, "小动物正在等公交车… ");
+  startCountdown(waitSeconds, driveIn, "小动物正在等公交车… ");
 }
 function driveIn() {
   state = "arriving";
@@ -101,7 +120,7 @@ function driveIn() {
 }
 function driveAway() {
   state = "leaving";
-  boardedAnimal = currentRound[Math.floor(Math.random() * currentRound.length)];
+  if (!boardedAnimal || !currentRound.includes(boardedAnimal)) pickBoardedAnimal();
   const target = elements.animals.querySelector(`[data-animal="${boardedAnimal.id}"]`);
   if (target) target.classList.add("missing");
   updateStatus("公交车开走了，想一想：谁上车了？");
@@ -117,8 +136,12 @@ function startRound(isNewRound = false) {
   if (isNewRound) {
     previousRoundIds = currentRound.map(animal => animal.id);
     currentRound = chooseAnimals();
+    pickBoardedAnimal();
   }
-  if (!currentRound.length) currentRound = chooseAnimals();
+  if (!currentRound.length) {
+    currentRound = chooseAnimals();
+    pickBoardedAnimal();
+  }
   startWaiting();
 }
 function repeatRound() { startRound(false); }
@@ -126,6 +149,7 @@ function refreshRound() {
   const excludedIds = currentRound.map(animal => animal.id);
   currentRound = chooseAnimals(excludedIds);
   previousRoundIds = [];
+  pickBoardedAnimal();
   startWaiting();
 }
 function showAnswerThenNext() {
@@ -135,11 +159,48 @@ function showAnswerThenNext() {
   elements.answer.textContent = `上车的是：${boardedAnimal.name}！`;
   elements.answer.classList.add("show");
   updateStatus("答对了吗？准备开始下一轮…");
+  playCheer();
+  sayWellDone();
   schedule(() => startRound(true), 2000);
 }
-function openTimerDialog() {
-  elements.timerInput.value = coverSeconds;
-  if (typeof elements.dialog.showModal === "function") elements.dialog.showModal();
+function playCheer() {
+  try {
+    const ctx = audioContext || new (window.AudioContext || window.webkitAudioContext)();
+    audioContext = ctx;
+    if (ctx.state === "suspended") ctx.resume();
+    const now = ctx.currentTime;
+    const notes = [523.25, 659.25, 783.99, 1046.5];
+    notes.forEach((frequency, index) => {
+      const t = now + index * 0.09;
+      const oscillator = ctx.createOscillator();
+      const volume = ctx.createGain();
+      oscillator.type = "triangle";
+      oscillator.frequency.setValueAtTime(frequency, t);
+      volume.gain.setValueAtTime(0.0001, t);
+      volume.gain.exponentialRampToValueAtTime(0.12, t + 0.02);
+      volume.gain.exponentialRampToValueAtTime(0.0001, t + 0.22);
+      oscillator.connect(volume).connect(ctx.destination);
+      oscillator.start(t);
+      oscillator.stop(t + 0.24);
+    });
+  } catch (error) { /* 音效失败不影响游戏 */ }
+}
+function sayWellDone() {
+  try {
+    if (!("speechSynthesis" in window)) return;
+    const utterance = new SpeechSynthesisUtterance("你真棒！");
+    utterance.lang = "zh-CN";
+    utterance.rate = 1.1;
+    utterance.pitch = 1.2;
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(utterance);
+  } catch (error) { /* 语音合成失败不影响游戏 */ }
+}
+function openSettingsDialog() {
+  elements.countInput.value = animalCount;
+  elements.coverInput.value = coverSeconds;
+  elements.waitInput.value = waitSeconds;
+  if (typeof elements.settingsDialog.showModal === "function") elements.settingsDialog.showModal();
 }
 function playNote(frequency, duration, startAt) {
   const oscillator = audioContext.createOscillator();
@@ -168,7 +229,7 @@ function toggleMusic() {
   if (musicOn) startMusic();
   else window.clearInterval(musicTimer);
   elements.music.setAttribute("aria-pressed", String(musicOn));
-  elements.music.textContent = musicOn ? "♫ 音乐：开" : "♫ 音乐：关";
+  elements.music.textContent = musicOn ? "♫ 开" : "♫ 关";
 }
 function makeId(src, index) {
   const stem = String(src).trim().replace(/\.[^.]+$/, "").toLowerCase();
@@ -205,11 +266,12 @@ function openAnimalsDialog() {
   if (typeof elements.animalsDialog.showModal === "function") elements.animalsDialog.showModal();
 }
 function getCatalogValidationError(catalog) {
-  if (catalog.length < 10) return "至少保留 10 只动物，才能保证刷新时完全更换 5 只动物。";
+  const minNeeded = animalCount * 2;
+  if (catalog.length < minNeeded) return `至少保留 ${minNeeded} 只动物，才能保证刷新时完全更换 ${animalCount} 只动物。`;
   const ids = new Set();
   for (const animal of catalog) {
     if (!animal.name.trim() || !animal.src.trim()) return "请填写每只动物的名称和图片文件名。";
-    if (!/\.(png|jpe?g|svg)$/i.test(animal.src.trim())) return "图片文件只支持 PNG、JPG、JPEG 或 SVG。";
+    if (!/\.(png|jpe?g|svg|webp)$/i.test(animal.src.trim())) return "图片文件只支持 PNG、JPG、JPEG、SVG 或 WebP。";
     if (ids.has(animal.id)) return "自动生成的 id 重复，请更换图片文件名。";
     ids.add(animal.id);
   }
@@ -236,10 +298,11 @@ async function saveCatalog() {
     await writable.close();
     animalCatalog = editableCatalog.map(animal => ({ ...animal }));
     window.ANIMAL_CATALOG = animalCatalog;
-    const validCurrentRound = currentRound.length === 5 && currentRound.every(animal => animalCatalog.some(item => item.id === animal.id));
+    const validCurrentRound = currentRound.length === animalCount && currentRound.every(animal => animalCatalog.some(item => item.id === animal.id));
     if (!validCurrentRound) {
       currentRound = chooseAnimals([]);
       previousRoundIds = [];
+      pickBoardedAnimal();
       startWaiting();
     }
     setCatalogMessage("已保存到 catalog.js，新动物会用于后续刷新和新一轮游戏。", true);
@@ -250,9 +313,50 @@ async function saveCatalog() {
 elements.repeat.addEventListener("click", repeatRound);
 elements.refresh.addEventListener("click", refreshRound);
 elements.next.addEventListener("click", showAnswerThenNext);
-elements.timer.addEventListener("click", openTimerDialog);
-elements.closeDialog.addEventListener("click", () => elements.dialog.close());
 elements.music.addEventListener("click", toggleMusic);
+elements.settings.addEventListener("click", openSettingsDialog);
+elements.closeSettings.addEventListener("click", () => elements.settingsDialog.close());
+elements.settingsForm.addEventListener("submit", event => {
+  event.preventDefault();
+  const count = Number(elements.countInput.value);
+  const cover = Number(elements.coverInput.value);
+  const wait = Number(elements.waitInput.value);
+  let valid = true;
+  if (!Number.isInteger(count) || count < 3 || count > 10) {
+    elements.countInput.setCustomValidity("请输入 3 到 10 之间的整数");
+    elements.countInput.reportValidity();
+    valid = false;
+  } else if (count * 2 > animalCatalog.length) {
+    elements.countInput.setCustomValidity(`动物素材至少需要 ${count * 2} 只，当前仅 ${animalCatalog.length} 只`);
+    elements.countInput.reportValidity();
+    valid = false;
+  }
+  if (valid && (!Number.isInteger(cover) || cover < 0 || cover > 60)) {
+    elements.coverInput.setCustomValidity("请输入 0 到 60 之间的整数");
+    elements.coverInput.reportValidity();
+    valid = false;
+  }
+  if (valid && (!Number.isInteger(wait) || wait < 1 || wait > 100)) {
+    elements.waitInput.setCustomValidity("请输入 1 到 100 之间的整数");
+    elements.waitInput.reportValidity();
+    valid = false;
+  }
+  if (!valid) return;
+  elements.countInput.setCustomValidity("");
+  elements.coverInput.setCustomValidity("");
+  elements.waitInput.setCustomValidity("");
+  const countChanged = count !== animalCount;
+  animalCount = count;
+  coverSeconds = cover;
+  waitSeconds = wait;
+  elements.settingsDialog.close();
+  if (countChanged) {
+    currentRound = chooseAnimals([]);
+    previousRoundIds = [];
+    pickBoardedAnimal();
+    startWaiting();
+  }
+});
 elements.animalsButton.addEventListener("click", openAnimalsDialog);
 elements.closeAnimalsDialog.addEventListener("click", () => elements.animalsDialog.close());
 elements.addAnimal.addEventListener("click", () => {
@@ -273,25 +377,12 @@ elements.catalogRows.addEventListener("input", event => {
 elements.catalogRows.addEventListener("click", event => {
   const index = Number(event.target.dataset.deleteIndex);
   if (!Number.isInteger(index)) return;
-  if (editableCatalog.length <= 10) return setCatalogMessage("至少保留 10 只动物，不能继续删除。");
+  const minNeeded = animalCount * 2;
+  if (editableCatalog.length <= minNeeded) return setCatalogMessage(`至少保留 ${minNeeded} 只动物，不能继续删除。`);
   editableCatalog.splice(index, 1);
   setCatalogMessage();
   renderCatalogRows();
 });
 elements.saveCatalog.addEventListener("click", saveCatalog);
-elements.timerForm.addEventListener("submit", event => {
-  event.preventDefault();
-  const seconds = Number(elements.timerInput.value);
-  if (!Number.isInteger(seconds) || seconds < 5 || seconds > 60) {
-    elements.timerInput.setCustomValidity("请输入 5 到 60 之间的整数");
-    elements.timerInput.reportValidity();
-    return;
-  }
-  elements.timerInput.setCustomValidity("");
-  coverSeconds = seconds;
-  updateTimerButton();
-  elements.dialog.close();
-});
 
-updateTimerButton();
 startRound();
