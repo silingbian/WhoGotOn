@@ -1,8 +1,10 @@
+/* 公共版游戏核心：只包含游戏、设置与固化内容。 */
 let animalCatalog = Array.isArray(window.ANIMAL_CATALOG) ? [...window.ANIMAL_CATALOG] : [];
 
 const WAIT_SECONDS_DEFAULT = 15;
 const COVER_SECONDS_DEFAULT = 1;
 const ANIMAL_COUNT_DEFAULT = 5;
+const SUCCESS_BACKGROUND_PLACEHOLDER = "assets/success-bg-placeholder.svg";
 
 const elements = {
   animals: document.querySelector("#animals"),
@@ -20,13 +22,15 @@ const elements = {
   waitInput: document.querySelector("#wait-input"),
   closeSettings: document.querySelector("#close-settings-dialog"),
   answer: document.querySelector("#answer-banner"),
-  animalsButton: document.querySelector("#animals-btn"),
-  animalsDialog: document.querySelector("#animals-dialog"),
-  closeAnimalsDialog: document.querySelector("#close-animals-dialog"),
-  catalogRows: document.querySelector("#catalog-rows"),
-  catalogMessage: document.querySelector("#catalog-message"),
-  addAnimal: document.querySelector("#add-animal-btn"),
-  saveCatalog: document.querySelector("#save-catalog-btn")
+  successOverlay: document.querySelector("#success-overlay"),
+  successScene: document.querySelector("#success-scene"),
+  successAnimalImage: document.querySelector("#success-animal-image"),
+  successAnimalName: document.querySelector("#success-animal-name"),
+  successNext: document.querySelector("#success-next-btn"),
+  successNextArrow: document.querySelector("#success-next-arrow"),
+  musicLabel: document.querySelector("#music-label"),
+  busImage: document.querySelector("#bus-image"),
+  stage: document.querySelector("#stage"),
 };
 
 let currentRound = [];
@@ -41,8 +45,60 @@ let musicOn = false;
 let audioContext = null;
 let musicTimer = null;
 let musicStep = 0;
-let editableCatalog = [];
-let catalogFileHandle = null;
+
+const TEXT_DEFAULTS = {
+  eyebrow: "视觉追踪训练小游戏",
+  titleLead: "谁上",
+  titleTail: "车了？",
+  instruction: "记住站台上的小动物，看看哪一只坐上了公交车。",
+  refresh: "刷新",
+  repeat: "再看一遍",
+  next: "答对了 →",
+  musicOn: "开",
+  musicOff: "关",
+  busLabel: "快乐巴士",
+  signLabel: "BUS",
+  statusWaiting: "小动物正在等公交车… ",
+  statusArriving: "公交车来了，请记住小动物！",
+  statusCovered: "公交正在停靠… ",
+  statusLeaving: "公交车开走了，想一想：谁上车了？",
+  statusAnswer: "看看谁上车了，点击「下一关」继续。",
+  answerTemplate: "上车的是：{name}！",
+  successArrow: "→",
+  successAction: "下一关",
+};
+
+const TEXT_FIELDS = [
+  { key: "titleLead", label: "标题 · 前段", selector: "#title-lead", group: "标题与说明", max: 8 },
+  { key: "titleTail", label: "标题 · 后段", selector: "#title-tail", group: "标题与说明", max: 8 },
+  { key: "eyebrow", label: "顶部小标题", selector: "#eyebrow-text", group: "标题与说明", max: 20 },
+  { key: "instruction", label: "说明文字", selector: "#instruction-text", group: "标题与说明", max: 48 },
+  { key: "refresh", label: "「刷新」按钮", selector: "#refresh-label", group: "按钮文字", max: 10 },
+  { key: "repeat", label: "「再看一遍」按钮", selector: "#repeat-label", group: "按钮文字", max: 10 },
+  { key: "next", label: "「答对了」按钮", selector: "#next-label", group: "按钮文字", max: 12 },
+  { key: "musicOn", label: "音乐：开", selector: "", group: "按钮文字", max: 6 },
+  { key: "musicOff", label: "音乐：关", selector: "", group: "按钮文字", max: 6 },
+  { key: "busLabel", label: "车头文字", selector: "#bus-label", group: "场景文字", max: 10 },
+  { key: "signLabel", label: "站牌文字", selector: "#sign-label", group: "场景文字", max: 10 },
+  { key: "statusWaiting", label: "等待提示", selector: "", group: "状态提示", max: 40 },
+  { key: "statusArriving", label: "公交到站提示", selector: "", group: "状态提示", max: 40 },
+  { key: "statusCovered", label: "停靠提示", selector: "", group: "状态提示", max: 40 },
+  { key: "statusLeaving", label: "开走提示", selector: "", group: "状态提示", max: 40 },
+  { key: "statusAnswer", label: "揭晓提示", selector: "", group: "状态提示", max: 40 },
+  { key: "answerTemplate", label: "答案横幅（{name} 会换成动物名）", selector: "", group: "状态提示", max: 40 },
+  { key: "successArrow", label: "「下一关」箭头 / 后置文字", selector: "#success-next-arrow", group: "祝贺弹层", max: 6 },
+  { key: "successAction", label: "「下一关」按钮", selector: "#success-next-label", group: "祝贺弹层", max: 10 }
+];
+
+let baseCatalog = Array.isArray(window.ANIMAL_CATALOG) ? window.ANIMAL_CATALOG.map(animal => ({ ...animal })) : [];
+let customAnimals = [];
+let customBackground = "";
+let backgroundFit = "width";
+let successBackground = "";
+let customBus = null;
+let busWidth = 100;
+let animalSpread = 100;
+let texts = { ...TEXT_DEFAULTS };
 
 function schedule(fn, delay) { const id = window.setTimeout(fn, delay); timers.push(id); return id; }
 function clearTimeline() { timers.forEach(clearTimeout); timers = []; }
@@ -54,14 +110,34 @@ function chooseAnimals(excludedIds = previousRoundIds) {
 function pickBoardedAnimal() {
   if (currentRound.length) boardedAnimal = currentRound[Math.floor(Math.random() * currentRound.length)];
 }
+/* 小动物站位：spread 100% = 铺满站台（默认），越小越向中间靠拢，越容易被公交车挡住 */
 function buildSpots(count) {
   const spots = [];
-  const width = Math.max(8, Math.min(18, 92 / count));
+  const spread = Math.max(.3, Math.min(1, animalSpread / 100));
+  const baseWidth = Math.max(8, Math.min(18, 92 / count));
   const step = 100 / count;
   for (let i = 0; i < count; i++) {
-    spots.push({ left: i * step + (step - width) / 2, top: 42, width });
+    const center = 50 + ((i + .5) * step - 50) * spread;
+    const width = Math.max(6, Math.min(baseWidth, step * spread));
+    spots.push({ left: center - width / 2, top: 42, width });
   }
   return spots;
+}
+/* 拖动「小动物左右间距」时直接刷新现有小动物位置，不打断游戏流程 */
+function applyAnimalSpots() {
+  if (elements.animalSpread) elements.animalSpread.value = String(animalSpread);
+  if (elements.animalSpreadValue) elements.animalSpreadValue.textContent = `${animalSpread}%`;
+  if (!elements.animals) return;
+  const items = Array.from(elements.animals.children);
+  if (!items.length) return;
+  const spots = buildSpots(items.length);
+  items.forEach((item, index) => {
+    const spot = spots[index];
+    if (!spot) return;
+    item.style.left = `${spot.left}%`;
+    item.style.top = `${spot.top}%`;
+    item.style.width = `${spot.width}%`;
+  });
 }
 function renderAnimals() {
   elements.animals.innerHTML = "";
@@ -77,7 +153,7 @@ function renderAnimals() {
     item.style.top = `${spot.top}%`;
     item.style.width = `${spot.width}%`;
     const image = document.createElement("img");
-    image.src = `assets/animals/${animal.src}`;
+    image.src = animalImageSrc(animal);
     image.alt = animal.name;
     image.addEventListener("error", () => {
       if (animal.fallback && image.getAttribute("src") !== animal.fallback) {
@@ -89,7 +165,14 @@ function renderAnimals() {
   });
 }
 function updateStatus(text) { elements.status.textContent = text; }
-function resetBus() { elements.bus.className = "bus"; }
+/* 保留自定义公交车标记，避免回合重置时被清掉 */
+function busBaseClass() {
+  return customBus && customBus.src ? "bus has-custom-image" : "bus";
+}
+function resetBus() {
+  elements.bus.className = busBaseClass();
+  if (elements.stage) elements.stage.classList.remove("bus-covering");
+}
 function startCountdown(seconds, onDone, label) {
   let remaining = seconds;
   const tick = () => {
@@ -105,31 +188,39 @@ function startWaiting() {
   state = "waiting";
   elements.next.disabled = true;
   elements.answer.classList.remove("show");
+  hideSuccessOverlay();
   renderAnimals();
   resetBus();
-  startCountdown(waitSeconds, driveIn, "小动物正在等公交车… ");
+  startCountdown(waitSeconds, driveIn, texts.statusWaiting);
 }
 function driveIn() {
   state = "arriving";
-  updateStatus("公交车来了，请记住小动物！");
+  updateStatus(texts.statusArriving);
   elements.bus.classList.add("in");
   schedule(() => {
     state = "covered";
-    startCountdown(coverSeconds, driveAway, "公交正在停靠… ");
+    if (elements.stage) elements.stage.classList.add("bus-covering");
+    hideBoardedAnimal();
+    startCountdown(coverSeconds, driveAway, texts.statusCovered);
   }, 1050);
+}
+function hideBoardedAnimal() {
+  if (!boardedAnimal || !currentRound.includes(boardedAnimal)) pickBoardedAnimal();
+  if (!boardedAnimal) return;
+  const target = elements.animals.querySelector(`[data-animal="${boardedAnimal.id}"]`);
+  if (target) target.classList.add("missing");
 }
 function driveAway() {
   state = "leaving";
-  if (!boardedAnimal || !currentRound.includes(boardedAnimal)) pickBoardedAnimal();
-  const target = elements.animals.querySelector(`[data-animal="${boardedAnimal.id}"]`);
-  if (target) target.classList.add("missing");
-  updateStatus("公交车开走了，想一想：谁上车了？");
+  hideBoardedAnimal();
+  if (elements.stage) elements.stage.classList.remove("bus-covering");
+  updateStatus(texts.statusLeaving);
   elements.bus.classList.remove("in");
   elements.bus.classList.add("out");
   schedule(() => {
     state = "finished";
     elements.next.disabled = false;
-    elements.bus.className = "bus";
+    elements.bus.className = busBaseClass();
   }, 1050);
 }
 function startRound(isNewRound = false) {
@@ -152,16 +243,38 @@ function refreshRound() {
   pickBoardedAnimal();
   startWaiting();
 }
-function showAnswerThenNext() {
-  if (state !== "finished") return;
+function showSuccessOverlay() {
+  if (state !== "finished" || !boardedAnimal) return;
   state = "answer";
   elements.next.disabled = true;
-  elements.answer.textContent = `上车的是：${boardedAnimal.name}！`;
+  elements.answer.textContent = texts.answerTemplate.replace("{name}", boardedAnimal.name);
   elements.answer.classList.add("show");
-  updateStatus("答对了吗？准备开始下一轮…");
+  applyTexts();
+  elements.successAnimalName.textContent = boardedAnimal.name;
+  elements.successAnimalImage.src = animalImageSrc(boardedAnimal);
+  elements.successAnimalImage.alt = boardedAnimal.name;
+  elements.successNext.disabled = false;
+  elements.successOverlay.hidden = false;
+  document.body.classList.add("success-open");
+  updateStatus(texts.statusAnswer);
   playCheer();
   sayWellDone();
-  schedule(() => startRound(true), 2000);
+  window.requestAnimationFrame(() => {
+    elements.successOverlay.classList.add("show");
+    elements.successNext.focus({ preventScroll: true });
+  });
+}
+function hideSuccessOverlay() {
+  if (!elements.successOverlay) return;
+  elements.successOverlay.classList.remove("show");
+  elements.successOverlay.hidden = true;
+  document.body.classList.remove("success-open");
+}
+function goToNextLevel() {
+  if (state !== "answer") return;
+  elements.successNext.disabled = true;
+  hideSuccessOverlay();
+  startRound(true);
 }
 function playCheer() {
   try {
@@ -229,90 +342,17 @@ function toggleMusic() {
   if (musicOn) startMusic();
   else window.clearInterval(musicTimer);
   elements.music.setAttribute("aria-pressed", String(musicOn));
-  elements.music.textContent = musicOn ? "♫ 开" : "♫ 关";
-}
-function makeId(src, index) {
-  const stem = String(src).trim().replace(/\.[^.]+$/, "").toLowerCase();
-  const base = stem.replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "") || "animal";
-  const used = new Set(editableCatalog.filter((_, rowIndex) => rowIndex !== index).map(animal => animal.id));
-  let id = base;
-  let number = 2;
-  while (used.has(id)) id = `${base}-${number++}`;
-  return id;
-}
-function escapeHtml(value) {
-  return String(value).replace(/[&<>"']/g, character => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[character]);
-}
-function setCatalogMessage(message = "", success = false) {
-  elements.catalogMessage.textContent = message;
-  elements.catalogMessage.classList.toggle("success", success);
-}
-function renderCatalogRows() {
-  elements.catalogRows.innerHTML = "";
-  editableCatalog.forEach((animal, index) => {
-    const row = document.createElement("tr");
-    row.innerHTML = `
-      <td><output>${escapeHtml(animal.id)}</output></td>
-      <td><input data-field="name" data-index="${index}" value="${escapeHtml(animal.name)}" aria-label="第 ${index + 1} 行动物名称"></td>
-      <td><input data-field="src" data-index="${index}" value="${escapeHtml(animal.src)}" aria-label="第 ${index + 1} 行图片文件名"></td>
-      <td><button class="delete-animal" type="button" data-delete-index="${index}">删除</button></td>`;
-    elements.catalogRows.append(row);
-  });
-}
-function openAnimalsDialog() {
-  editableCatalog = animalCatalog.map(animal => ({ ...animal }));
-  setCatalogMessage();
-  renderCatalogRows();
-  if (typeof elements.animalsDialog.showModal === "function") elements.animalsDialog.showModal();
-}
-function getCatalogValidationError(catalog) {
-  const minNeeded = animalCount * 2;
-  if (catalog.length < minNeeded) return `至少保留 ${minNeeded} 只动物，才能保证刷新时完全更换 ${animalCount} 只动物。`;
-  const ids = new Set();
-  for (const animal of catalog) {
-    if (!animal.name.trim() || !animal.src.trim()) return "请填写每只动物的名称和图片文件名。";
-    if (!/\.(png|jpe?g|svg|webp)$/i.test(animal.src.trim())) return "图片文件只支持 PNG、JPG、JPEG、SVG 或 WebP。";
-    if (ids.has(animal.id)) return "自动生成的 id 重复，请更换图片文件名。";
-    ids.add(animal.id);
-  }
-  return "";
-}
-function catalogSource(catalog) {
-  return `/* 由“动物素材清单”界面生成，请勿删除 window.ANIMAL_CATALOG。 */\nwindow.ANIMAL_CATALOG = ${JSON.stringify(catalog, null, 2)};\n`;
-}
-async function saveCatalog() {
-  const error = getCatalogValidationError(editableCatalog);
-  if (error) return setCatalogMessage(error);
-  if (!window.showOpenFilePicker) return setCatalogMessage("此浏览器不支持直接写入文件，请在支持文件授权的桌面浏览器中操作。");
-  try {
-    if (!catalogFileHandle) {
-      const [handle] = await window.showOpenFilePicker({
-        types: [{ description: "JavaScript 清单", accept: { "text/javascript": [".js"] } }],
-        multiple: false
-      });
-      if (handle.name !== "catalog.js") return setCatalogMessage("请选择 assets/animals/catalog.js 文件。" );
-      catalogFileHandle = handle;
-    }
-    const writable = await catalogFileHandle.createWritable();
-    await writable.write(catalogSource(editableCatalog));
-    await writable.close();
-    animalCatalog = editableCatalog.map(animal => ({ ...animal }));
-    window.ANIMAL_CATALOG = animalCatalog;
-    const validCurrentRound = currentRound.length === animalCount && currentRound.every(animal => animalCatalog.some(item => item.id === animal.id));
-    if (!validCurrentRound) {
-      currentRound = chooseAnimals([]);
-      previousRoundIds = [];
-      pickBoardedAnimal();
-      startWaiting();
-    }
-    setCatalogMessage("已保存到 catalog.js，新动物会用于后续刷新和新一轮游戏。", true);
-  } catch (error) {
-    if (error.name !== "AbortError") setCatalogMessage("未能写入文件，请确认已授权选择正确的 catalog.js。");
-  }
+  if (elements.musicLabel) elements.musicLabel.textContent = musicOn ? texts.musicOn : texts.musicOff;
 }
 elements.repeat.addEventListener("click", repeatRound);
 elements.refresh.addEventListener("click", refreshRound);
-elements.next.addEventListener("click", showAnswerThenNext);
+elements.next.addEventListener("click", showSuccessOverlay);
+elements.successNext.addEventListener("click", goToNextLevel);
+elements.successOverlay.addEventListener("keydown", event => {
+  if (event.key !== "Tab") return;
+  event.preventDefault();
+  elements.successNext.focus();
+});
 elements.music.addEventListener("click", toggleMusic);
 elements.settings.addEventListener("click", openSettingsDialog);
 elements.closeSettings.addEventListener("click", () => elements.settingsDialog.close());
@@ -357,32 +397,117 @@ elements.settingsForm.addEventListener("submit", event => {
     startWaiting();
   }
 });
-elements.animalsButton.addEventListener("click", openAnimalsDialog);
-elements.closeAnimalsDialog.addEventListener("click", () => elements.animalsDialog.close());
-elements.addAnimal.addEventListener("click", () => {
-  editableCatalog.push({ id: makeId("animal", editableCatalog.length), name: "", src: "" });
-  renderCatalogRows();
-});
-elements.catalogRows.addEventListener("input", event => {
-  const input = event.target;
-  const index = Number(input.dataset.index);
-  const field = input.dataset.field;
-  if (!field || !editableCatalog[index]) return;
-  editableCatalog[index][field] = input.value;
-  if (field === "src") editableCatalog[index].id = makeId(input.value, index);
-  renderCatalogRows();
-  const updatedInput = elements.catalogRows.querySelector(`[data-index="${index}"][data-field="${field}"]`);
-  if (updatedInput) { updatedInput.focus(); updatedInput.setSelectionRange(input.value.length, input.value.length); }
-});
-elements.catalogRows.addEventListener("click", event => {
-  const index = Number(event.target.dataset.deleteIndex);
-  if (!Number.isInteger(index)) return;
-  const minNeeded = animalCount * 2;
-  if (editableCatalog.length <= minNeeded) return setCatalogMessage(`至少保留 ${minNeeded} 只动物，不能继续删除。`);
-  editableCatalog.splice(index, 1);
-  setCatalogMessage();
-  renderCatalogRows();
-});
-elements.saveCatalog.addEventListener("click", saveCatalog);
+/* ================= 自定义：文字与图片 ================= */
+
+function animalImageSrc(animal) {
+  const src = String(animal.src || "");
+  if (/^(data:|blob:|https?:|\/)/i.test(src)) return src;
+  return `assets/animals/${src}`;
+}
+
+function rebuildCatalog() {
+  animalCatalog = [...baseCatalog, ...customAnimals];
+  window.ANIMAL_CATALOG = animalCatalog;
+}
+function savedCustomDefaults() {
+  return window.SAVED_CUSTOM && typeof window.SAVED_CUSTOM === "object" ? window.SAVED_CUSTOM : {};
+}
+function applyTexts() {
+  TEXT_FIELDS.forEach(field => {
+    if (!field.selector) return;
+    const node = document.querySelector(field.selector);
+    if (node) node.textContent = texts[field.key];
+  });
+  if (elements.musicLabel) elements.musicLabel.textContent = musicOn ? texts.musicOn : texts.musicOff;
+  if (elements.successNextArrow) {
+    elements.successNextArrow.textContent = texts.successArrow;
+    elements.successNextArrow.hidden = !texts.successArrow.trim();
+  }
+}
+
+/* 大图上传后按宽度适配，避免显得过大或被拉伸 */
+function backgroundSizeFor(fit) {
+  if (fit === "contain") return "contain";
+  if (fit === "width") return "100% auto";
+  return "cover";
+}
+
+function applyBackground() {
+  if (!elements.stage) return;
+  if (customBackground) {
+    elements.stage.style.backgroundImage = `url("${customBackground}")`;
+    elements.stage.style.backgroundSize = backgroundSizeFor(backgroundFit);
+    elements.stage.style.backgroundRepeat = "no-repeat";
+    elements.stage.style.backgroundPosition = "center";
+    elements.stage.classList.add("has-custom-bg");
+  } else {
+    elements.stage.style.backgroundImage = "";
+    elements.stage.style.backgroundSize = "";
+    elements.stage.style.backgroundRepeat = "";
+    elements.stage.style.backgroundPosition = "";
+    elements.stage.classList.remove("has-custom-bg");
+  }
+  if (elements.bgFit) {
+    elements.bgFit.value = backgroundFit;
+    elements.bgFit.disabled = !customBackground;
+  }
+  if (!elements.bgPreview) return;
+  elements.bgPreview.hidden = !customBackground;
+  elements.bgPreview.style.backgroundImage = customBackground ? `url("${customBackground}")` : "";
+  elements.bgPreview.style.backgroundSize = backgroundSizeFor(backgroundFit);
+}
+function applySuccessBackground() {
+  const image = successBackground || SUCCESS_BACKGROUND_PLACEHOLDER;
+  if (elements.successScene) elements.successScene.style.setProperty("--success-bg-image", `url("${image}")`);
+  if (elements.successBgPreview) {
+    elements.successBgPreview.style.backgroundImage = `url("${image}")`;
+  }
+  if (elements.successBgRemove) elements.successBgRemove.disabled = !successBackground;
+}
+
+function applyBus() {
+  if (!elements.bus) return;
+  const hasImage = Boolean(customBus && customBus.src);
+  if (elements.busImage) {
+    if (hasImage) {
+      if (elements.busImage.getAttribute("src") !== customBus.src) elements.busImage.src = customBus.src;
+      elements.busImage.hidden = false;
+    } else {
+      elements.busImage.hidden = true;
+      elements.busImage.removeAttribute("src");
+    }
+  }
+  elements.bus.classList.toggle("has-custom-image", hasImage);
+  elements.bus.style.setProperty("--bus-image-width", `${hasImage ? busWidth : 102}%`);
+  if (elements.busWidth) { elements.busWidth.disabled = !hasImage; elements.busWidth.value = String(busWidth); }
+  if (elements.busWidthValue) elements.busWidthValue.textContent = `${busWidth}%`;
+  if (elements.busPreview) {
+    elements.busPreview.hidden = !hasImage;
+    elements.busPreview.style.backgroundImage = hasImage ? `url("${customBus.src}")` : "";
+  }
+}
+const storedCustom = savedCustomDefaults();
+if (storedCustom.texts && typeof storedCustom.texts === "object") {
+  Object.keys(TEXT_DEFAULTS).forEach(key => {
+    if (typeof storedCustom.texts[key] === "string") texts[key] = storedCustom.texts[key];
+  });
+}
+customBackground = typeof storedCustom.background === "string" ? storedCustom.background : "";
+backgroundFit = ["width", "contain", "cover"].includes(storedCustom.backgroundFit) ? storedCustom.backgroundFit : "width";
+successBackground = typeof storedCustom.successBackground === "string" ? storedCustom.successBackground : "";
+busWidth = Number.isFinite(Number(storedCustom.busWidth)) ? Math.max(50, Math.min(140, Number(storedCustom.busWidth))) : 100;
+animalSpread = Number.isFinite(Number(storedCustom.animalSpread)) ? Math.max(40, Math.min(100, Number(storedCustom.animalSpread))) : 100;
+customBus = storedCustom.bus && typeof storedCustom.bus.src === "string" && storedCustom.bus.src ? { src: storedCustom.bus.src } : null;
+customAnimals = Array.isArray(storedCustom.animals)
+  ? storedCustom.animals.filter(animal => animal && animal.id && animal.name && animal.src)
+  : [];
+const savedCatalogIds = new Set(baseCatalog.map(animal => animal.id));
+customAnimals = customAnimals.filter(animal => !savedCatalogIds.has(animal.id));
+rebuildCatalog();
+applyTexts();
+applyBackground();
+applySuccessBackground();
+applyBus();
+applyAnimalSpots();
 
 startRound();

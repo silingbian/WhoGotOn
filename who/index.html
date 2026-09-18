@@ -4,32 +4,58 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>谁上车了？视觉记忆游戏</title>
-    <link rel="stylesheet" href="styles.css" />
+    <link rel="stylesheet" href="styles.css?v=20260918-5" />
   </head>
   <body>
+    <div class="bg-scene" aria-hidden="true">
+      <span class="cloud cloud-a"></span>
+      <span class="cloud cloud-b"></span>
+      <span class="cloud cloud-c"></span>
+      <span class="cloud cloud-d"></span>
+    </div>
+
     <main class="app-shell">
       <header class="page-header">
         <div class="header-buttons">
-          <button id="animals-btn" class="animals-button" type="button" aria-haspopup="dialog">动物</button>
-          <button id="settings-btn" class="settings-button" type="button" aria-haspopup="dialog">设置</button>
+          <button id="settings-btn" class="settings-button" type="button" aria-haspopup="dialog">
+            <span class="btn-icon">⚙</span>设置
+          </button>
         </div>
-        <p class="eyebrow">视觉追踪训练小游戏</p>
-        <h1>谁上车了？</h1>
-        <p class="instruction">记住站台上的小动物，看看哪一只坐上了公交车。</p>
+        <p class="eyebrow" id="eyebrow-text">视觉追踪训练小游戏</p>
+        <h1><span class="title-navy" id="title-lead">谁上</span><span class="title-orange" id="title-tail">车了？</span></h1>
+        <p class="instruction" id="instruction-text">记住站台上的小动物，看看哪一只坐上了公交车。</p>
       </header>
 
       <section class="game-card" aria-label="谁上车了游戏">
         <div id="stage" class="stage" role="img" aria-label="公交站与小动物">
-          <div class="stage-tools">
-            <button id="refresh-btn" class="chip-button" type="button">↻ 刷新</button>
-            <button id="music-btn" class="music-button" type="button" aria-pressed="false">♫ 关</button>
+          <div class="scene-backdrop" aria-hidden="true">
+            <span class="scene-sun"></span>
+            <span class="scene-cloud scene-cloud-a"></span>
+            <span class="scene-cloud scene-cloud-b"></span>
+            <span class="scene-cloud scene-cloud-c"></span>
+            <span class="bush bush-left"></span>
+            <span class="bush bush-right"></span>
+            <span class="sign-pole"></span>
+            <span class="stop-sign">
+              <span class="sign-panel"><i class="sign-bus"></i><b id="sign-label">BUS</b></span>
+            </span>
+            <span class="road"></span>
           </div>
+
+          <div class="stage-tools">
+            <button id="refresh-btn" class="chip-button" type="button"><span class="chip-icon">↻</span><span id="refresh-label">刷新</span></button>
+            <button id="music-btn" class="music-button" type="button" aria-pressed="false">♫ <span id="music-label">关</span></button>
+          </div>
+
           <div id="animals" class="animals" aria-live="polite"></div>
+
           <div id="bus" class="bus" aria-hidden="true">
-            <div class="bus-top"><span>快乐巴士</span><i></i><i></i><i></i><i></i></div>
-            <div class="bus-body"><b></b><b></b><b></b><b></b></div>
+            <img id="bus-image" class="bus-image" alt="" hidden />
+            <div class="bus-top"><span id="bus-label">快乐巴士</span><i></i><i></i><i></i></div>
+            <div class="bus-stripe"></div>
             <div class="bus-bottom"><i></i><i></i></div>
           </div>
+
           <div id="answer-banner" class="answer-banner" aria-live="assertive"></div>
         </div>
 
@@ -39,11 +65,24 @@
         </div>
 
         <div class="actions">
-          <button id="repeat-btn" class="button button-secondary" type="button">再看一遍</button>
-          <button id="next-btn" class="button button-primary" type="button" disabled>答对了 →</button>
+          <button id="repeat-btn" class="button button-secondary" type="button"><span class="btn-icon">↻</span><span id="repeat-label">再看一遍</span></button>
+          <button id="next-btn" class="button button-primary" type="button" disabled><span class="btn-icon">🚌</span><span id="next-label">答对了 →</span></button>
         </div>
       </section>
     </main>
+
+    <div id="success-overlay" class="success-overlay" role="dialog" aria-modal="true" aria-label="恭喜过关" hidden>
+      <div id="success-scene" class="success-scene">
+        <div class="success-content">
+          <img id="success-animal-image" class="success-animal-image" src="" alt="" />
+          <p id="success-animal-name" class="success-animal-name"></p>
+          <button id="success-next-btn" class="success-next" type="button">
+            <span id="success-next-label">下一关</span>
+            <span id="success-next-arrow" class="success-next-arrow" aria-hidden="true">→</span>
+          </button>
+        </div>
+      </div>
+    </div>
 
     <dialog id="settings-dialog" class="settings-dialog" aria-labelledby="settings-title">
       <form id="settings-form" method="dialog">
@@ -51,44 +90,27 @@
         <p class="eyebrow">难度设置</p>
         <h2 id="settings-title">游戏设置</h2>
 
-        <label for="count-input">动物出场数（3–10 只）</label>
-        <input id="count-input" type="number" min="3" max="10" step="1" inputmode="numeric" />
+        <label class="field" for="count-input">
+          <span>动物出场数（3–10 只）</span>
+          <input id="count-input" type="number" min="3" max="10" step="1" inputmode="numeric" />
+        </label>
 
-        <label for="cover-input">公交停留（0–60 秒）</label>
-        <input id="cover-input" type="number" min="0" max="60" step="1" inputmode="numeric" />
+        <label class="field" for="cover-input">
+          <span>公交停留（0–60 秒）</span>
+          <input id="cover-input" type="number" min="0" max="60" step="1" inputmode="numeric" />
+        </label>
 
-        <label for="wait-input">等待时间（1–100 秒）</label>
-        <input id="wait-input" type="number" min="1" max="100" step="1" inputmode="numeric" />
+        <label class="field" for="wait-input">
+          <span>等待时间（1–100 秒）</span>
+          <input id="wait-input" type="number" min="1" max="100" step="1" inputmode="numeric" />
+        </label>
 
-        <button class="button button-primary" type="submit">确定</button>
+        <button class="button button-primary button-block" type="submit">确定</button>
       </form>
     </dialog>
 
-    <dialog id="animals-dialog" class="animals-dialog" aria-labelledby="animals-title">
-      <div class="animals-dialog-content">
-        <div class="dialog-heading">
-          <div>
-            <p class="eyebrow">素材管理</p>
-            <h2 id="animals-title">动物素材清单</h2>
-          </div>
-          <button class="dialog-close" type="button" id="close-animals-dialog" aria-label="关闭">×</button>
-        </div>
-        <p class="catalog-help">添加图片文件后填写名称与文件名，系统会自动生成 id。支持 PNG、JPG、JPEG、SVG（位图建议使用 WebP 提升加载速度）。</p>
-        <div class="catalog-table-wrap">
-          <table class="catalog-table">
-            <thead><tr><th>id</th><th>名称</th><th>图片文件名</th><th>操作</th></tr></thead>
-            <tbody id="catalog-rows"></tbody>
-          </table>
-        </div>
-        <p id="catalog-message" class="catalog-message" aria-live="polite"></p>
-        <div class="catalog-actions">
-          <button id="add-animal-btn" class="button button-secondary" type="button">＋ 添加动物</button>
-          <button id="save-catalog-btn" class="button button-primary" type="button">保存到 catalog.js</button>
-        </div>
-      </div>
-    </dialog>
-
-    <script src="assets/animals/catalog.js"></script>
-    <script src="game.js"></script>
+    <script src="assets/animals/catalog.js?v=20260918-5"></script>
+    <script src="assets/custom/defaults.js?v=20260918-5"></script>
+    <script src="game.js?v=20260918-5"></script>
   </body>
 </html>
